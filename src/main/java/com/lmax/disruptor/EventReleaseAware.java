@@ -15,6 +15,7 @@
  */
 package com.lmax.disruptor;
 
+//这个是事件结束的标志把
 public interface EventReleaseAware
 {
     void setEventReleaser(EventReleaser eventReleaser);

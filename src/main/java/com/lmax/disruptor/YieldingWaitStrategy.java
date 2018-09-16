@@ -23,20 +23,17 @@ package com.lmax.disruptor;
  * This strategy will use 100% CPU, but will more readily give up the CPU than a busy spin strategy if other threads
  * require CPU resource.
  */
-public final class YieldingWaitStrategy implements WaitStrategy
-{
+public final class YieldingWaitStrategy implements WaitStrategy {
     private static final int SPIN_TRIES = 100;
 
     @Override
     public long waitFor(
-        final long sequence, Sequence cursor, final Sequence dependentSequence, final SequenceBarrier barrier)
-        throws AlertException, InterruptedException
-    {
+            final long sequence, Sequence cursor, final Sequence dependentSequence, final SequenceBarrier barrier)
+            throws AlertException, InterruptedException {
         long availableSequence;
         int counter = SPIN_TRIES;
-
-        while ((availableSequence = dependentSequence.get()) < sequence)
-        {
+        //如果依赖的序列小于要等待的序列
+        while ((availableSequence = dependentSequence.get()) < sequence) {
             counter = applyWaitMethod(barrier, counter);
         }
 
@@ -44,21 +41,18 @@ public final class YieldingWaitStrategy implements WaitStrategy
     }
 
     @Override
-    public void signalAllWhenBlocking()
-    {
+    //阻塞策略时用到的
+    public void signalAllWhenBlocking() {
     }
 
     private int applyWaitMethod(final SequenceBarrier barrier, int counter)
-        throws AlertException
-    {
+            throws AlertException {
         barrier.checkAlert();
-
-        if (0 == counter)
-        {
+        //如果为0 则线程结束
+        if (0 == counter) {
             Thread.yield();
-        }
-        else
-        {
+        } else {
+            //否则返回一个--的序列
             --counter;
         }
 

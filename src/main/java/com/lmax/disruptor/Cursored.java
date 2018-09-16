@@ -16,16 +16,14 @@
 package com.lmax.disruptor;
 
 /**
+ * 指针
  * Implementors of this interface must provide a single long value
- * that represents their current cursor value.  Used during dynamic
- * add/remove of Sequences from a
- * {@link SequenceGroups#addSequences(Object, java.util.concurrent.atomic.AtomicReferenceFieldUpdater, Cursored, Sequence...)}.
+ * that represents their current cursor value.
  */
-public interface Cursored
-{
+public interface Cursored {
     /**
      * Get the current cursor value.
-     *
+     * 获取当前序列的值
      * @return current cursor value
      */
     long getCursor();

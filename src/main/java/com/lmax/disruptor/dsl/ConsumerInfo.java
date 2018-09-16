@@ -5,8 +5,10 @@ import com.lmax.disruptor.SequenceBarrier;
 
 import java.util.concurrent.Executor;
 
-interface ConsumerInfo
-{
+/**
+ * 生产者信息
+ */
+interface ConsumerInfo {
     Sequence[] getSequences();
 
     SequenceBarrier getBarrier();

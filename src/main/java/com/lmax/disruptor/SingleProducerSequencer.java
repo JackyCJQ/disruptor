@@ -21,6 +21,7 @@ import com.lmax.disruptor.util.Util;
 
 abstract class SingleProducerSequencerPad extends AbstractSequencer
 {
+    //填充行
     protected long p1, p2, p3, p4, p5, p6, p7;
 
     SingleProducerSequencerPad(int bufferSize, WaitStrategy waitStrategy)
@@ -53,6 +54,7 @@ abstract class SingleProducerSequencerFields extends SingleProducerSequencerPad
 
 public final class SingleProducerSequencer extends SingleProducerSequencerFields
 {
+
     protected long p1, p2, p3, p4, p5, p6, p7;
 
     /**
@@ -76,16 +78,18 @@ public final class SingleProducerSequencer extends SingleProducerSequencerFields
     }
 
     private boolean hasAvailableCapacity(int requiredCapacity, boolean doStore)
-    {
+    {   //初始的时候是-1
         long nextValue = this.nextValue;
 
         long wrapPoint = (nextValue + requiredCapacity) - bufferSize;
+        //默认也是-1
         long cachedGatingSequence = this.cachedValue;
 
+        //
         if (wrapPoint > cachedGatingSequence || cachedGatingSequence > nextValue)
         {
             if (doStore)
-            {
+            {     //设置当前指针
                 cursor.setVolatile(nextValue);  // StoreLoad fence
             }
 

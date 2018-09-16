@@ -15,7 +15,11 @@
  */
 package com.lmax.disruptor;
 
-public interface DataProvider<T>
-{
+/**
+ * 事件提供接口
+ *
+ * @param <T>
+ */
+public interface DataProvider<T> {
     T get(long sequence);
 }

@@ -20,53 +20,50 @@ import com.lmax.disruptor.*;
 import java.util.*;
 
 /**
- * Provides a repository mechanism to associate {@link EventHandler}s with {@link EventProcessor}s
+ * 消费者注册
  *
- * @param <T> the type of the {@link EventHandler}
+ *
+ * @param <T>
  */
-class ConsumerRepository<T> implements Iterable<ConsumerInfo>
-{
-    private final Map<EventHandler<?>, EventProcessorInfo<T>> eventProcessorInfoByEventHandler =
-        new IdentityHashMap<>();
-    private final Map<Sequence, ConsumerInfo> eventProcessorInfoBySequence =
-        new IdentityHashMap<>();
+class ConsumerRepository<T> implements Iterable<ConsumerInfo> {
+    //事件处理器 事件处理过程中的信息 每个事件处理器都需要EventProcessorInfo来跟踪事件进展情况
+    //IdentityHashMap认为地址相同才相同 所以可以多个相同的key对象，也就是可以有多个相同内容的EventHandler
+    private final Map<EventHandler<?>, EventProcessorInfo<T>> eventProcessorInfoByEventHandler = new IdentityHashMap<>();
+
+    //每个序列对应生产者信息
+    private final Map<Sequence, ConsumerInfo> eventProcessorInfoBySequence = new IdentityHashMap<>();
+    //所有的生产者信息
     private final Collection<ConsumerInfo> consumerInfos = new ArrayList<>();
 
     public void add(
-        final EventProcessor eventprocessor,
-        final EventHandler<? super T> handler,
-        final SequenceBarrier barrier)
-    {
+            final EventProcessor eventprocessor,
+            final EventHandler<? super T> handler,
+            final SequenceBarrier barrier) {
         final EventProcessorInfo<T> consumerInfo = new EventProcessorInfo<>(eventprocessor, handler, barrier);
         eventProcessorInfoByEventHandler.put(handler, consumerInfo);
         eventProcessorInfoBySequence.put(eventprocessor.getSequence(), consumerInfo);
         consumerInfos.add(consumerInfo);
     }
 
-    public void add(final EventProcessor processor)
-    {
+    public void add(final EventProcessor processor) {
         final EventProcessorInfo<T> consumerInfo = new EventProcessorInfo<>(processor, null, null);
         eventProcessorInfoBySequence.put(processor.getSequence(), consumerInfo);
         consumerInfos.add(consumerInfo);
     }
 
-    public void add(final WorkerPool<T> workerPool, final SequenceBarrier sequenceBarrier)
-    {
+    public void add(final WorkerPool<T> workerPool, final SequenceBarrier sequenceBarrier) {
+        //添加消费者信息
         final WorkerPoolInfo<T> workerPoolInfo = new WorkerPoolInfo<>(workerPool, sequenceBarrier);
         consumerInfos.add(workerPoolInfo);
-        for (Sequence sequence : workerPool.getWorkerSequences())
-        {
+        for (Sequence sequence : workerPool.getWorkerSequences()) {
             eventProcessorInfoBySequence.put(sequence, workerPoolInfo);
         }
     }
 
-    public Sequence[] getLastSequenceInChain(boolean includeStopped)
-    {
+    public Sequence[] getLastSequenceInChain(boolean includeStopped) {
         List<Sequence> lastSequence = new ArrayList<>();
-        for (ConsumerInfo consumerInfo : consumerInfos)
-        {
-            if ((includeStopped || consumerInfo.isRunning()) && consumerInfo.isEndOfChain())
-            {
+        for (ConsumerInfo consumerInfo : consumerInfos) {
+            if ((includeStopped || consumerInfo.isRunning()) && consumerInfo.isEndOfChain()) {
                 final Sequence[] sequences = consumerInfo.getSequences();
                 Collections.addAll(lastSequence, sequences);
             }
@@ -75,49 +72,40 @@ class ConsumerRepository<T> implements Iterable<ConsumerInfo>
         return lastSequence.toArray(new Sequence[lastSequence.size()]);
     }
 
-    public EventProcessor getEventProcessorFor(final EventHandler<T> handler)
-    {
+    public EventProcessor getEventProcessorFor(final EventHandler<T> handler) {
         final EventProcessorInfo<T> eventprocessorInfo = getEventProcessorInfo(handler);
-        if (eventprocessorInfo == null)
-        {
+        if (eventprocessorInfo == null) {
             throw new IllegalArgumentException("The event handler " + handler + " is not processing events.");
         }
 
         return eventprocessorInfo.getEventProcessor();
     }
 
-    public Sequence getSequenceFor(final EventHandler<T> handler)
-    {
+    public Sequence getSequenceFor(final EventHandler<T> handler) {
         return getEventProcessorFor(handler).getSequence();
     }
 
-    public void unMarkEventProcessorsAsEndOfChain(final Sequence... barrierEventProcessors)
-    {
-        for (Sequence barrierEventProcessor : barrierEventProcessors)
-        {
+    public void unMarkEventProcessorsAsEndOfChain(final Sequence... barrierEventProcessors) {
+        for (Sequence barrierEventProcessor : barrierEventProcessors) {
             getEventProcessorInfo(barrierEventProcessor).markAsUsedInBarrier();
         }
     }
 
     @Override
-    public Iterator<ConsumerInfo> iterator()
-    {
+    public Iterator<ConsumerInfo> iterator() {
         return consumerInfos.iterator();
     }
 
-    public SequenceBarrier getBarrierFor(final EventHandler<T> handler)
-    {
+    public SequenceBarrier getBarrierFor(final EventHandler<T> handler) {
         final ConsumerInfo consumerInfo = getEventProcessorInfo(handler);
         return consumerInfo != null ? consumerInfo.getBarrier() : null;
     }
 
-    private EventProcessorInfo<T> getEventProcessorInfo(final EventHandler<T> handler)
-    {
+    private EventProcessorInfo<T> getEventProcessorInfo(final EventHandler<T> handler) {
         return eventProcessorInfoByEventHandler.get(handler);
     }
 
-    private ConsumerInfo getEventProcessorInfo(final Sequence barrierEventProcessor)
-    {
+    private ConsumerInfo getEventProcessorInfo(final Sequence barrierEventProcessor) {
         return eventProcessorInfoBySequence.get(barrierEventProcessor);
     }
 }

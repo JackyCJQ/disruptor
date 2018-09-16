@@ -6,7 +6,9 @@ import java.util.concurrent.Executor;
 
 class WorkerPoolInfo<T> implements ConsumerInfo
 {
+    //工作池
     private final WorkerPool<T> workerPool;
+
     private final SequenceBarrier sequenceBarrier;
     private boolean endOfChain = true;
 
