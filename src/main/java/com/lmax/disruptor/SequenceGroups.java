@@ -28,26 +28,29 @@ class SequenceGroups {
             final AtomicReferenceFieldUpdater<T, Sequence[]> updater,
             final Cursored cursor,
             final Sequence... sequencesToAdd) {
+
         long cursorSequence;
         Sequence[] updatedSequences;
         Sequence[] currentSequences;
 
-        //cas更新
+        //cas更新gatingSequences
         do {
-            //先获取原来的属性
+            //先获取原来的gatingSequences集合
             currentSequences = updater.get(holder);
-            //进行赋值
+            //扩充updatedSequences集合
             updatedSequences = copyOf(currentSequences, currentSequences.length + sequencesToAdd.length);
+            //获取当前指针序列
             cursorSequence = cursor.getCursor();
 
             int index = currentSequences.length;
             for (Sequence sequence : sequencesToAdd) {
+                //把后来添加的的序列的指针同一设置位当前指针
                 sequence.set(cursorSequence);
                 updatedSequences[index++] = sequence;
             }
         }
         while (!updater.compareAndSet(holder, currentSequences, updatedSequences));
-
+       //再次设置指针  什么意思？
         cursorSequence = cursor.getCursor();
         for (Sequence sequence : sequencesToAdd) {
             sequence.set(cursorSequence);
@@ -72,8 +75,9 @@ class SequenceGroups {
             }
 
             final int oldSize = oldSequences.length;
+            //新的序列的大小
             newSequences = new Sequence[oldSize - numToRemove];
-
+           //
             for (int i = 0, pos = 0; i < oldSize; i++) {
                 final Sequence testSequence = oldSequences[i];
                 if (sequence != testSequence) {

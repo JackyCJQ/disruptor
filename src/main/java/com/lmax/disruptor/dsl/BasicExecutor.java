@@ -8,10 +8,11 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadFactory;
 
-//对线程池封装一层 主要是获取每个线程执行的状态
+//任务执行器
 public class BasicExecutor implements Executor {
     //线程创建工厂
     private final ThreadFactory factory;
+    //记录每个开启的线程
     private final Queue<Thread> threads = new ConcurrentLinkedQueue<>();
 
     public BasicExecutor(ThreadFactory factory) {
@@ -20,7 +21,7 @@ public class BasicExecutor implements Executor {
 
     @Override
     public void execute(Runnable command) {
-        //创建一个线程去跑
+        //创建一个新的线程去执行
         final Thread thread = factory.newThread(command);
         if (null == thread) {
             throw new RuntimeException("Failed to create thread to run: " + command);
@@ -39,7 +40,7 @@ public class BasicExecutor implements Executor {
 
     private String dumpThreadInfo() {
         final StringBuilder sb = new StringBuilder();
-
+        //获取线程的具体信息
         final ThreadMXBean threadMXBean = ManagementFactory.getThreadMXBean();
 
         for (Thread t : threads) {

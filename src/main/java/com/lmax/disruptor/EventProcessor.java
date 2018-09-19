@@ -16,7 +16,11 @@
 package com.lmax.disruptor;
 
 /**
- * 继承自runnable
+ *
+ * 事件处理器，是可执行单元。运行在executor里；他会不断地通过SequencerBarrier获取可消费事件，当有可消费事件时，调用用户提供的Eventhandler
+ * 实现处理事件，
+ *
+ *
  * An EventProcessor needs to be an implementation of a runnable that will poll for events from the {@link RingBuffer}
  * using the appropriate wait strategy.  It is unlikely that you will need to implement this interface yourself.
  * Look at using the {@link EventHandler} interface along with the pre-supplied BatchEventProcessor in the first

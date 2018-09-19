@@ -15,7 +15,7 @@
  */
 package com.lmax.disruptor;
 
-//事件处理器
+//事件处理器，用户提供具体的实现，代表了一个消费者接口
 public interface EventHandler<T> {
     //回调方法
     void onEvent(T event, long sequence, boolean endOfBatch) throws Exception;

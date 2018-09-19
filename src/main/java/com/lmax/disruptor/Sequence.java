@@ -51,18 +51,20 @@ class RhsPadding extends Value {
     protected long p9, p10, p11, p12, p13, p14, p15;
 }
 
-//主要是序列号的作用 就是一个long型的值
+/**
+ * 代表事件序号或者是一个指向缓存某个位置的序号，每个消费者都维持者一个sequence
+ */
 public class Sequence extends RhsPadding {
     static final long INITIAL_VALUE = -1L;
-    //这里应该是cas的内容把 还不是很了解
+    //
     private static final Unsafe UNSAFE;
-    //偏移量
+    //value在64位缓冲行中的偏移量
     private static final long VALUE_OFFSET;
 
     static {
         UNSAFE = Util.getUnsafe();
         try {
-            //这里是取得Value类中 变量 value的偏移量
+            //这里是取得Value类中 变量value的偏移量
             //获取在一个缓冲行具体的地址位置
             VALUE_OFFSET = UNSAFE.objectFieldOffset(Value.class.getDeclaredField("value"));
         } catch (final Exception e) {

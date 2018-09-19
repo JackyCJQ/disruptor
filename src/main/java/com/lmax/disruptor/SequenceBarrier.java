@@ -15,6 +15,11 @@
  */
 package com.lmax.disruptor;
 
+/**
+ * 消费者关卡。消费者用于访问缓存的控制器，每个访问控制器还持有前置访问控制器的引用，用于维持正确的事件处理顺序；通过wairStrategy获取可消费的事件序号
+ * 。由Sequencer生成，并且包含了已经发布的Sequence的引用，这些的Sequence源于Sequencer和一些独立的消费者的Sequence。它包含了决定是否消费者
+ * 来消费的event逻辑。
+ */
 public interface SequenceBarrier {
     /**
      * Wait for the given sequence to be available for consumption.

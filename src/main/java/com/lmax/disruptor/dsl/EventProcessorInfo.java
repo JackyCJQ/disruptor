@@ -31,17 +31,16 @@ import java.util.concurrent.Executor;
  * @param <T> the type of the configured {@link EventHandler}
  */
 class EventProcessorInfo<T> implements ConsumerInfo {
-    //事件处理过程
+    //对应的事件处理过程器
     private final EventProcessor eventprocessor;
     //事件处理器
     private final EventHandler<? super T> handler;
-    //序列屏障
+    //对应的序列屏障
     private final SequenceBarrier barrier;
-    //
+    //是否是处于结束 默认是结束的
     private boolean endOfChain = true;
-
-    EventProcessorInfo(
-            final EventProcessor eventprocessor, final EventHandler<? super T> handler, final SequenceBarrier barrier) {
+    //这些信息都有外部传入进来 EventProcessorInfo默认应该只是起一个记录的作用
+    EventProcessorInfo( final EventProcessor eventprocessor, final EventHandler<? super T> handler, final SequenceBarrier barrier) {
         this.eventprocessor = eventprocessor;
         this.handler = handler;
         this.barrier = barrier;
@@ -81,7 +80,7 @@ class EventProcessorInfo<T> implements ConsumerInfo {
     }
 
     /**
-     *
+     *标记开始使用
      */
     @Override
     public void markAsUsedInBarrier() {

@@ -26,15 +26,16 @@ import com.lmax.disruptor.util.Util;
  * ownership of the current cursor.
  */
 public abstract class AbstractSequencer implements Sequencer {
-    //原子更新操作
+    //原子更新操作 消费者消费事件的时候 会更新gatingSequences 这个字段
     private static final AtomicReferenceFieldUpdater<AbstractSequencer, Sequence[]> SEQUENCE_UPDATER =
             AtomicReferenceFieldUpdater.newUpdater(AbstractSequencer.class, Sequence[].class, "gatingSequences");
     //环的大小
     protected final int bufferSize;
+    //生产者等待序列
     protected final WaitStrategy waitStrategy;
     //一个Sequence类型的指针，默认指向-1
     protected final Sequence cursor = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
-    //路由的序列
+    //消费者可获取的最小的序列 因为可能是多个消费者 所以需要volatile 确保多个消费者并发反问
     protected volatile Sequence[] gatingSequences = new Sequence[0];
 
     /**
@@ -57,7 +58,7 @@ public abstract class AbstractSequencer implements Sequencer {
     }
 
     /**
-     * 返回对应的long值
+     * 返回对应的long值，获取当前指针指向的序列
      *
      * @see Sequencer#getCursor()
      */

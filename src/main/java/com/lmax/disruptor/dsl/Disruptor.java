@@ -38,6 +38,17 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Disruptor为什么这么快？
+ * 1。不使用锁，通过内存屏障和cas操作代替锁
+ * 2。缓存基于数组而不是链表，用位运算代替求模。缓存的总长度总是2的n次方，这样可以用位运算i&(length-1)替代i%length
+ * 3.去除伪共享。cpu的缓存一般是以缓存行为最小的单位，对应主存的一块相应大小的单元；当前缓存行大小一般是64字节，每个缓存行一次只能被一个
+ * cpu核访问，如果一个缓存行被多个cpu访问，就会造成竞争，导致某个核必须等待其他核处理完了才能继续处理。去除伪共享就是确保cpu核访问某个缓存行时
+ * 不会出现竞争
+ * 4。预分配缓存对象，通过更新缓存里对象的属性而不是删除对象来减少垃圾回收。
+ *
+ * @param <T>
+ */
 
 public class Disruptor<T> {
     //对RingBuffer的引用
@@ -303,7 +314,7 @@ public class Disruptor<T> {
     EventHandlerGroup<T> createEventProcessors(final Sequence[] barrierSequences, final EventHandler<? super T>[] eventHandlers) {
         //必须在disruptor启动之前添加
         checkNotStarted();
-        //每个消费者都有自己的事件序号Sequence
+        //每个消费者都有自己要消费事件的序号Sequence
         final Sequence[] processorSequences = new Sequence[eventHandlers.length];
         //消费者通过SequenceBarrier等待可消费的事件
         final SequenceBarrier barrier = ringBuffer.newBarrier(barrierSequences);

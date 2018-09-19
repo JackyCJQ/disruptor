@@ -21,62 +21,74 @@ import sun.misc.Unsafe;
 import com.lmax.disruptor.dsl.ProducerType;
 import com.lmax.disruptor.util.Util;
 
-//填充 还是为了去掉伪共享问题
+//填充 还是为了去掉伪共享问题 缓存行一般是64位，有的也可能达到128行
 abstract class RingBufferPad {
+    //long型数据每个占8字节 56位
     protected long p1, p2, p3, p4, p5, p6, p7;
 }
 
+/**
+ * 继承了填充的56位
+ *
+ * @param <E>
+ */
 abstract class RingBufferFields<E> extends RingBufferPad {
     //填充
     private static final int BUFFER_PAD;
-    //数组的起始地址
+    //引用型数组的起始地址
     private static final long REF_ARRAY_BASE;
-    //2的位数
+    //引用型元素 位移动的位数
     private static final int REF_ELEMENT_SHIFT;
-    //通过反射获取Unsafe
+    //通过反射获取Unsafe，默认Unsafe是不能直接获取的  只能通过反射的方式获取
     private static final Unsafe UNSAFE = Util.getUnsafe();
 
     static {
-        //如果是数组类型的 则会取内增增量大小
+        //如果是引用型数组类型的  则是每个引用类型元素所占内存大小 也就是每个元素的增量
         final int scale = UNSAFE.arrayIndexScale(Object[].class);
-        //如果增量大小为4个字节(int)
+        //如果增量大小为4个字节(int) 通过二进制的平移来做乘法效率较高
         if (4 == scale) {
+            //则位移的位数位2位
             REF_ELEMENT_SHIFT = 2;
         }
         //如果增量大小为8个字节 （引用类型或是long,double）
         else if (8 == scale) {
+            //则位移的位数位3位
             REF_ELEMENT_SHIFT = 3;
         } else {
             throw new IllegalStateException("Unknown pointer size");
         }
-        //一般是64字节的填充，有的是128字节的
+        //一般是64字节的填充，有的是128字节的，这里用的是128字节
+        //这里是填充的数量 如果是8字节则填充16个空元素 如果是4个字节则需要填充32个空元素
         BUFFER_PAD = 128 / scale;
         // Including the buffer pad in the array base offset
-        //数组的起始地址+128字节后的地址？？ 为什么要填充128个字节呢？
+        //数组的起始地址+128字节后的地址 因为前后分别填充了128字节
         REF_ARRAY_BASE = UNSAFE.arrayBaseOffset(Object[].class) + (BUFFER_PAD << REF_ELEMENT_SHIFT);
     }
 
+    //因为2的n次方-1 的二进制为 1111..111这样求余的时候直接进行与操作速度比较快
     private final long indexMask;
+    //数据实际保存的数据结构就是一个数组
     private final Object[] entries;
     //缓冲区大小
     protected final int bufferSize;
-    //缓存管理的组件
+    //缓存的控制器
     protected final Sequencer sequencer;
 
     RingBufferFields(EventFactory<E> eventFactory, Sequencer sequencer) {
         this.sequencer = sequencer;
+        //设置数据环的大小
         this.bufferSize = sequencer.getBufferSize();
 
         if (bufferSize < 1) {
             throw new IllegalArgumentException("bufferSize must not be less than 1");
         }
-        //必须是2的n次方
+        //数据环的大小 必须是2的n次方 如果是2的n次方 则为 1 10 100 1000 。。这种形式 也就是1出现的次数为1
         if (Integer.bitCount(bufferSize) != 1) {
             throw new IllegalArgumentException("bufferSize must be a power of 2");
         }
-        //最后一个位置
+        //为什么要2的n次方 因为2的n次方-1 的二进制为 1111..111 这样求余的时候直接进行与操作速度比较快
         this.indexMask = bufferSize - 1;
-        //填充数据，
+        //填充数据，为什么要填充这么多数据？？？
         this.entries = new Object[sequencer.getBufferSize() + 2 * BUFFER_PAD];
         fill(eventFactory);
     }
@@ -89,28 +101,31 @@ abstract class RingBufferFields<E> extends RingBufferPad {
     private void fill(EventFactory<E> eventFactory) {
         //每一个环处 填充一个
         for (int i = 0; i < bufferSize; i++) {
-            //从事件生产工厂获取一个实例
+            //填充128字节+数据+填充128字节
             entries[BUFFER_PAD + i] = eventFactory.newInstance();
         }
     }
 
     @SuppressWarnings("unchecked")
     protected final E elementAt(long sequence) {
-        //这里就是ringbuffer取   2的n次方的原因  可以直接与操作获取对应的内存中的地址
+        // 从数组的起始地址  2的n次方的原因 不是取摸的操作 而是按位与的操作  算出index 在乘以每个元素所占大小 就是其内存起始位置
+        //这里做的真好
         return (E) UNSAFE.getObject(entries, REF_ARRAY_BASE + ((sequence & indexMask) << REF_ELEMENT_SHIFT));
     }
 }
 
-
+/**
+ * 基于数组的缓存实现
+ *
+ * @param <E>
+ */
 public final class RingBuffer<E> extends RingBufferFields<E> implements Cursored, EventSequencer<E>, EventSink<E> {
-    //默认就是 -1
+    //默认初始化序列是 -1
     public static final long INITIAL_CURSOR_VALUE = Sequence.INITIAL_VALUE;
     protected long p1, p2, p3, p4, p5, p6, p7;
 
-
-    RingBuffer(
-            EventFactory<E> eventFactory,
-            Sequencer sequencer) {
+    //初始化的时候就填充满了ringbuffer
+    RingBuffer(EventFactory<E> eventFactory, Sequencer sequencer) {
         super(eventFactory, sequencer);
     }
 
@@ -123,10 +138,7 @@ public final class RingBuffer<E> extends RingBufferFields<E> implements Cursored
      * @param <E>
      * @return
      */
-    public static <E> RingBuffer<E> createMultiProducer(
-            EventFactory<E> factory,
-            int bufferSize,
-            WaitStrategy waitStrategy) {
+    public static <E> RingBuffer<E> createMultiProducer(EventFactory<E> factory, int bufferSize, WaitStrategy waitStrategy) {
         //多生产者序列
         MultiProducerSequencer sequencer = new MultiProducerSequencer(bufferSize, waitStrategy);
 
@@ -153,8 +165,7 @@ public final class RingBuffer<E> extends RingBufferFields<E> implements Cursored
      * @param <E>
      * @return
      */
-    public static <E> RingBuffer<E> createSingleProducer(EventFactory<E> factory, int bufferSize,
-                                                         WaitStrategy waitStrategy) {
+    public static <E> RingBuffer<E> createSingleProducer(EventFactory<E> factory, int bufferSize, WaitStrategy waitStrategy) {
         SingleProducerSequencer sequencer = new SingleProducerSequencer(bufferSize, waitStrategy);
 
         return new RingBuffer<E>(factory, sequencer);
@@ -187,6 +198,12 @@ public final class RingBuffer<E> extends RingBufferFields<E> implements Cursored
     }
 
 
+    /**
+     * 获取对应序列处 对应的数据对象
+     *
+     * @param sequence
+     * @return
+     */
     @Override
     public E get(long sequence) {
         return elementAt(sequence);
@@ -196,7 +213,6 @@ public final class RingBuffer<E> extends RingBufferFields<E> implements Cursored
     public long next() {
         return sequencer.next();
     }
-
 
     @Override
     public long next(int n) {

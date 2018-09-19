@@ -17,7 +17,8 @@ package com.lmax.disruptor;
 
 
 /**
- * 等待策略,如果ringbuffer无法在容纳更多的生产者产生的事件
+ * 当没有可消费的时间时，根据特定的实现进行等待，有可消费事件时返回可消费事件的序号；有新事件发布时通知等待的
+ * SequenceBarrier。它决定了一个消费者如何等待生产者将event置入disruptor
  */
 public interface WaitStrategy {
 

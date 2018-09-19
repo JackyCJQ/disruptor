@@ -29,24 +29,27 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class WorkProcessor<T> implements EventProcessor {
     //是否开始
     private final AtomicBoolean running = new AtomicBoolean(false);
-    //初始化的序列
+    //当前执行器对应的序列
     private final Sequence sequence = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+    //对应的数据环
     private final RingBuffer<T> ringBuffer;
+    //还有序列屏障
     private final SequenceBarrier sequenceBarrier;
-
+    //真正消费者执行消费的操作
     private final WorkHandler<? super T> workHandler;
+    //异常处理器
     private final ExceptionHandler<? super T> exceptionHandler;
     //开始工作的序列
     private final Sequence workSequence;
 
-    //设置sequence
+    //事件结束时 设置序列为一个最大值
     private final EventReleaser eventReleaser = new EventReleaser() {
         @Override
         public void release() {
             sequence.set(Long.MAX_VALUE);
         }
     };
-    //超时处理
+    //超时处理器
     private final TimeoutHandler timeoutHandler;
 
     /**
@@ -71,6 +74,7 @@ public final class WorkProcessor<T> implements EventProcessor {
         this.exceptionHandler = exceptionHandler;
         this.workSequence = workSequence;
 
+        //处理器是否还继承了其他事件
         if (this.workHandler instanceof EventReleaseAware) {
             ((EventReleaseAware) this.workHandler).setEventReleaser(eventReleaser);
         }
@@ -101,20 +105,22 @@ public final class WorkProcessor<T> implements EventProcessor {
      */
     @Override
     public void run() {
+        //只能开启一次
         if (!running.compareAndSet(false, true)) {
             throw new IllegalStateException("Thread is already running");
         }
+        //开始执行的时候清除标识位
         sequenceBarrier.clearAlert();
         //通知开始执行
         notifyStart();
         //开始处理序列
         boolean processedSequence = true;
-        //缓存的序号
+        //默认是一个最小的值
         long cachedAvailableSequence = Long.MIN_VALUE;
-        //获取这个序列中的序列号值
+        //获取当前对应的序列值
         long nextSequence = sequence.get();
-        T event = null;
 
+        T event = null;
         //单个消费者
         while (true) {
             try {
@@ -123,24 +129,27 @@ public final class WorkProcessor<T> implements EventProcessor {
                 // typically, this will be true
                 // this prevents the sequence getting too far forward if an exception
                 // is thrown from the WorkHandler
+                //如果抛出异常了 说明这个事件没有处理 需要下次在次处理
                 if (processedSequence) {
                     processedSequence = false;
-                    //cas并发获取一个序列
+                    //cas获取一个序列
                     do {
-                        //worksequence应该是共享的
+                        //序列值+1
                         nextSequence = workSequence.get() + 1L;
+                        //当前序列值
                         sequence.set(nextSequence - 1L);
                     }
                     while (!workSequence.compareAndSet(nextSequence - 1L, nextSequence));
                 }
-                //序列没有终止
+                //如果下一个序列在可获取的序列之前 则可以获取
                 if (cachedAvailableSequence >= nextSequence) {
                     //获取对应序列的事件
                     event = ringBuffer.get(nextSequence);
+                    //事件处理器开始处理这个事件
                     workHandler.onEvent(event);
                     processedSequence = true;
                 } else {
-                    //如果没有缓存的 就需要进行等待
+                    //看能否获取到这个序列的数据
                     cachedAvailableSequence = sequenceBarrier.waitFor(nextSequence);
                 }
             } catch (final TimeoutException e) {
@@ -163,7 +172,7 @@ public final class WorkProcessor<T> implements EventProcessor {
 
         running.set(false);
     }
-
+    //超时处理
     private void notifyTimeout(final long availableSequence) {
         try {
             if (timeoutHandler != null) {
@@ -174,6 +183,7 @@ public final class WorkProcessor<T> implements EventProcessor {
         }
     }
 
+    //如果处理器继承了LifecycleAware接口 则通知开始执行了
     private void notifyStart() {
         if (workHandler instanceof LifecycleAware) {
             try {
@@ -184,6 +194,7 @@ public final class WorkProcessor<T> implements EventProcessor {
         }
     }
 
+    //如果执行器继承了LifecycleAware 在结束的时候 则通知结束了
     private void notifyShutdown() {
         if (workHandler instanceof LifecycleAware) {
             try {

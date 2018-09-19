@@ -34,11 +34,13 @@ public final class BatchEventProcessor<T> implements EventProcessor {
      * 一共是三种状态 IDEL HALTED RUNNING
      */
     private static final int IDLE = 0;
+    //  1
     private static final int HALTED = IDLE + 1;
+    //  2
     private static final int RUNNING = HALTED + 1;
-    //默认为0
+    // 默认为0
     private final AtomicInteger running = new AtomicInteger(IDLE);
-    //出错默认是打印日志
+    // 错误处理器
     private ExceptionHandler<? super T> exceptionHandler = new FatalExceptionHandler();
 
     //就是ringbuffer
@@ -112,7 +114,9 @@ public final class BatchEventProcessor<T> implements EventProcessor {
      */
     @Override
     public void run() {
+        //如果是空闲的状态，改变为运行状态
         if (running.compareAndSet(IDLE, RUNNING)) {
+            //清除状态
             sequenceBarrier.clearAlert();
 
             notifyStart();
@@ -122,6 +126,7 @@ public final class BatchEventProcessor<T> implements EventProcessor {
                 }
             } finally {
                 notifyShutdown();
+                //设置为空闲状态
                 running.set(IDLE);
             }
         } else {
@@ -210,6 +215,7 @@ public final class BatchEventProcessor<T> implements EventProcessor {
     }
 
     /**
+     * 通知结束
      * Notifies the EventHandler immediately prior to this processor shutting down
      */
     private void notifyShutdown() {

@@ -22,7 +22,6 @@ import java.util.*;
 /**
  * 消费者注册
  *
- *
  * @param <T>
  */
 class ConsumerRepository<T> implements Iterable<ConsumerInfo> {

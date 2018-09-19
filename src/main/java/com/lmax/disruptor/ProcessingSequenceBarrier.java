@@ -17,7 +17,9 @@ package com.lmax.disruptor;
 
 
 /**
- * 消费者直接交互的对象
+ * 消费者处理过程中的序列屏障
+ * <p>
+ * 最简单的就是生产者和消费者分别在不同的线程中进行 通过cursorSequence 联系两者之间的关系
  * {@link SequenceBarrier} handed out for gating {@link EventProcessor}s on a cursor sequence and optional dependent {@link EventProcessor}(s),
  * using the given WaitStrategy.
  */
@@ -28,7 +30,7 @@ final class ProcessingSequenceBarrier implements SequenceBarrier {
     private final Sequence dependentSequence;
     //默认为false 线程间变量可见的
     private volatile boolean alerted = false;
-    //当前序列指针
+    //当前可获取事件的最小的序列值 这个是与生产者序列共用的 只要生产者发布事件 这里就会感知到
     private final Sequence cursorSequence;
     //生产者直接交互的对象
     private final Sequencer sequencer;
@@ -66,6 +68,7 @@ final class ProcessingSequenceBarrier implements SequenceBarrier {
         return sequencer.getHighestPublishedSequence(sequence, availableSequence);
     }
 
+    //如果有依赖 则需要等待依赖完成
     @Override
     public long getCursor() {
         return dependentSequence.get();
@@ -79,6 +82,7 @@ final class ProcessingSequenceBarrier implements SequenceBarrier {
     @Override
     public void alert() {
         alerted = true;
+        //当有阻塞的要通知所有的 状态已经更新
         waitStrategy.signalAllWhenBlocking();
     }
 

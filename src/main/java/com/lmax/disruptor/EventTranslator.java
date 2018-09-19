@@ -16,6 +16,9 @@
 package com.lmax.disruptor;
 
 /**
+ *
+ *
+ * 事件转换器，由于disruptro只会覆盖缓存，需要通过此接口的实现来更新缓存里的事件来覆盖旧事件
  * <p>Implementations translate (write) data representations into events claimed from the {@link RingBuffer}.</p>
  *
  * <p>When publishing to the RingBuffer, provide an EventTranslator. The RingBuffer will select the next available
