@@ -50,7 +50,7 @@ class SequenceGroups {
             }
         }
         while (!updater.compareAndSet(holder, currentSequences, updatedSequences));
-       //再次设置指针  什么意思？
+        //再次设置指针  什么意思？
         cursorSequence = cursor.getCursor();
         for (Sequence sequence : sequencesToAdd) {
             sequence.set(cursorSequence);
@@ -66,6 +66,7 @@ class SequenceGroups {
         Sequence[] newSequences;
 
         do {
+            //先获取原来的gatingSequences集合
             oldSequences = sequenceUpdater.get(holder);
             //移除所有相等的sequence
             numToRemove = countMatching(oldSequences, sequence);
@@ -77,7 +78,7 @@ class SequenceGroups {
             final int oldSize = oldSequences.length;
             //新的序列的大小
             newSequences = new Sequence[oldSize - numToRemove];
-           //
+            //重新循环，去掉相同的sequence
             for (int i = 0, pos = 0; i < oldSize; i++) {
                 final Sequence testSequence = oldSequences[i];
                 if (sequence != testSequence) {

@@ -19,7 +19,7 @@ import java.util.concurrent.locks.LockSupport;
 
 import com.lmax.disruptor.util.Util;
 
-//但生产者序列填充
+//生产者序列填充
 abstract class SingleProducerSequencerPad extends AbstractSequencer {
     //填充行 56位
     protected long p1, p2, p3, p4, p5, p6, p7;
@@ -39,7 +39,7 @@ abstract class SingleProducerSequencerFields extends SingleProducerSequencerPad 
      */
     //下一个序列值 不断增加的
     long nextValue = Sequence.INITIAL_VALUE;
-    //控制不能无限增加的一个最小值 当nextValue-buffersize>这个值的时候 就不能贼增加nextValue，发布最多就是 buffersize个事件
+    //控制不能无限增加的一个最小值 当nextValue-buffersize>这个值的时候 就不能贼增加nextValue，发布的可获取的序列号最小的序列
     long cachedValue = Sequence.INITIAL_VALUE;
 }
 
@@ -78,19 +78,19 @@ public final class SingleProducerSequencer extends SingleProducerSequencerFields
         long nextValue = this.nextValue;
         //验证是否可以获取申请的长度
         long wrapPoint = (nextValue + requiredCapacity) - bufferSize;
-        //以填充数据的最小的序列值
+        //已填充数据的最小的序列值
         long cachedGatingSequence = this.cachedValue;
         //如果
         if (wrapPoint > cachedGatingSequence || cachedGatingSequence > nextValue) {
             if (doStore) {
-                //设置当前指针为申请后的
+                //设置当前指针
                 cursor.setVolatile(nextValue);  // StoreLoad fence
             }
 
             long minSequence = Util.getMinimumSequence(gatingSequences, nextValue);
             //设置最小的可消费的指针序列
             this.cachedValue = minSequence;
-             //如果大于最小的序列 则不能进行申请
+            //如果大于最小的序列 则不能进行申请
             if (wrapPoint > minSequence) {
                 return false;
             }

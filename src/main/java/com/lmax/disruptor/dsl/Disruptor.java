@@ -134,6 +134,7 @@ public class Disruptor<T> {
     @SuppressWarnings("varargs")
     @SafeVarargs
     public final EventHandlerGroup<T> handleEventsWith(final EventHandler<? super T>... handlers) {
+        //所有的事件处理器的初始化指针为 -1
         return createEventProcessors(new Sequence[0], handlers);
     }
 
@@ -316,7 +317,7 @@ public class Disruptor<T> {
         checkNotStarted();
         //每个消费者都有自己要消费事件的序号Sequence
         final Sequence[] processorSequences = new Sequence[eventHandlers.length];
-        //消费者通过SequenceBarrier等待可消费的事件
+        //消费者通过SequenceBarrier等待可消费的事件,eventHandlers.length个处理器是并行结构，开始处理的序列的最小值是一样的
         final SequenceBarrier barrier = ringBuffer.newBarrier(barrierSequences);
 
         for (int i = 0, eventHandlersLength = eventHandlers.length; i < eventHandlersLength; i++) {
@@ -331,9 +332,10 @@ public class Disruptor<T> {
             }
 
             consumerRepository.add(batchEventProcessor, eventHandler, barrier);
+            //初始化每个处理器的序列值
             processorSequences[i] = batchEventProcessor.getSequence();
         }
-
+        //barrierSequences 都是相同的
         updateGatingSequencesForNextInChain(barrierSequences, processorSequences);
 
         return new EventHandlerGroup<>(this, consumerRepository, processorSequences);
@@ -341,6 +343,7 @@ public class Disruptor<T> {
 
     private void updateGatingSequencesForNextInChain(final Sequence[] barrierSequences, final Sequence[] processorSequences) {
         if (processorSequences.length > 0) {
+            //添加每个处理器的门槛序列值
             ringBuffer.addGatingSequences(processorSequences);
             for (final Sequence barrierSequence : barrierSequences) {
                 ringBuffer.removeGatingSequence(barrierSequence);

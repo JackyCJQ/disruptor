@@ -25,7 +25,7 @@ import java.util.*;
  * @param <T>
  */
 class ConsumerRepository<T> implements Iterable<ConsumerInfo> {
-    //事件处理器 事件处理过程中的信息 每个事件处理器都需要EventProcessorInfo来跟踪事件进展情况
+    //事件处理器  每个事件处理器都需要EventProcessorInfo来跟踪事件进展情况
     //IdentityHashMap认为地址相同才相同 所以可以多个相同的key对象，也就是可以有多个相同内容的EventHandler
     private final Map<EventHandler<?>, EventProcessorInfo<T>> eventProcessorInfoByEventHandler = new IdentityHashMap<>();
 
@@ -34,10 +34,8 @@ class ConsumerRepository<T> implements Iterable<ConsumerInfo> {
     //所有的生产者信息
     private final Collection<ConsumerInfo> consumerInfos = new ArrayList<>();
 
-    public void add(
-            final EventProcessor eventprocessor,
-            final EventHandler<? super T> handler,
-            final SequenceBarrier barrier) {
+    public void add(final EventProcessor eventprocessor, final EventHandler<? super T> handler,
+                    final SequenceBarrier barrier) {
         final EventProcessorInfo<T> consumerInfo = new EventProcessorInfo<>(eventprocessor, handler, barrier);
         eventProcessorInfoByEventHandler.put(handler, consumerInfo);
         eventProcessorInfoBySequence.put(eventprocessor.getSequence(), consumerInfo);
@@ -54,6 +52,7 @@ class ConsumerRepository<T> implements Iterable<ConsumerInfo> {
         //添加消费者信息
         final WorkerPoolInfo<T> workerPoolInfo = new WorkerPoolInfo<>(workerPool, sequenceBarrier);
         consumerInfos.add(workerPoolInfo);
+        //记录池中每一个序列对应的消费信息
         for (Sequence sequence : workerPool.getWorkerSequences()) {
             eventProcessorInfoBySequence.put(sequence, workerPoolInfo);
         }

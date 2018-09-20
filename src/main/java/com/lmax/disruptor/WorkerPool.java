@@ -21,6 +21,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
+ * 工作池
  * WorkerPool contains a pool of {@link WorkProcessor}s that will consume sequences so jobs can be farmed out across a pool of workers.
  * Each of the {@link WorkProcessor}s manage and calls a {@link WorkHandler} to process the events.
  *
@@ -29,9 +30,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class WorkerPool<T> {
     //原子类，默认是关闭的状态
     private final AtomicBoolean started = new AtomicBoolean(false);
-    //初始化序列
+    //初始化序列 工作开始的序列
     private final Sequence workSequence = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
+    //对应的数据中心
     private final RingBuffer<T> ringBuffer;
+    //处理器
     // WorkProcessors are created to wrap each of the provided WorkHandlers
     private final WorkProcessor<?>[] workProcessors;
 
@@ -52,9 +55,10 @@ public final class WorkerPool<T> {
             final SequenceBarrier sequenceBarrier,
             final ExceptionHandler<? super T> exceptionHandler,
             final WorkHandler<? super T>... workHandlers) {
+
         this.ringBuffer = ringBuffer;
         final int numWorkers = workHandlers.length;
-        //对于每个work创建对应的WorkProcessor
+        //对于每个处理器创建对应的WorkProcessor
         workProcessors = new WorkProcessor[numWorkers];
 
         for (int i = 0; i < numWorkers; i++) {
@@ -82,7 +86,7 @@ public final class WorkerPool<T> {
             final EventFactory<T> eventFactory,
             final ExceptionHandler<? super T> exceptionHandler,
             final WorkHandler<? super T>... workHandlers) {
-        //创建多消费者的ringbuffer
+        //默认创建多生产者的数据环
         ringBuffer = RingBuffer.createMultiProducer(eventFactory, 1024, new BlockingWaitStrategy());
         //根据多消费者 创建对应的 SequenceBarrier
         final SequenceBarrier barrier = ringBuffer.newBarrier();
@@ -98,7 +102,7 @@ public final class WorkerPool<T> {
                     //初始的时候都是原始序列
                     workSequence);
         }
-
+        //多生产者 需要设置这个GatingSequences
         ringBuffer.addGatingSequences(getWorkerSequences());
     }
 
@@ -110,9 +114,10 @@ public final class WorkerPool<T> {
     public Sequence[] getWorkerSequences() {
         final Sequence[] sequences = new Sequence[workProcessors.length + 1];
         for (int i = 0, size = workProcessors.length; i < size; i++) {
+            //获取没一个处理器 已经处理到的序列
             sequences[i] = workProcessors[i].getSequence();
         }
-        //多一个序列？？
+        //和当前所有的序列 要处理的序列值
         sequences[sequences.length - 1] = workSequence;
 
         return sequences;
@@ -130,12 +135,15 @@ public final class WorkerPool<T> {
         if (!started.compareAndSet(false, true)) {
             throw new IllegalStateException("WorkerPool has already been started and cannot be restarted until halted.");
         }
-         //获取当前的序列
+        //获取当前可消费事件的最小序列
         final long cursor = ringBuffer.getCursor();
+        //设置工作开始的序列
         workSequence.set(cursor);
-         //开始执行
+        //开始执行
         for (WorkProcessor<?> processor : workProcessors) {
+            //把每个生产者已经处理的序列 设置为开始工作的初值
             processor.getSequence().set(cursor);
+            //开始执行
             executor.execute(processor);
         }
         return ringBuffer;
@@ -146,6 +154,7 @@ public final class WorkerPool<T> {
      */
     public void drainAndHalt() {
         Sequence[] workerSequences = getWorkerSequences();
+        //直到 每个处理器 要处理的序列都不小于当前可获取的序列时 停止执行
         while (ringBuffer.getCursor() > Util.getMinimumSequence(workerSequences)) {
             Thread.yield();
         }
@@ -153,7 +162,7 @@ public final class WorkerPool<T> {
         for (WorkProcessor<?> processor : workProcessors) {
             processor.halt();
         }
-
+        //停止执行
         started.set(false);
     }
 

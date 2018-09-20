@@ -39,8 +39,9 @@ class EventProcessorInfo<T> implements ConsumerInfo {
     private final SequenceBarrier barrier;
     //是否是处于结束 默认是结束的
     private boolean endOfChain = true;
-    //这些信息都有外部传入进来 EventProcessorInfo默认应该只是起一个记录的作用
-    EventProcessorInfo( final EventProcessor eventprocessor, final EventHandler<? super T> handler, final SequenceBarrier barrier) {
+
+    //根据传入信息 记录数据
+    EventProcessorInfo(final EventProcessor eventprocessor, final EventHandler<? super T> handler, final SequenceBarrier barrier) {
         this.eventprocessor = eventprocessor;
         this.handler = handler;
         this.barrier = barrier;
@@ -80,7 +81,7 @@ class EventProcessorInfo<T> implements ConsumerInfo {
     }
 
     /**
-     *标记开始使用
+     * 标记开始使用
      */
     @Override
     public void markAsUsedInBarrier() {

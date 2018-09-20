@@ -32,7 +32,7 @@ public final class YieldingWaitStrategy implements WaitStrategy {
             throws AlertException, InterruptedException {
         long availableSequence;
         int counter = SPIN_TRIES;
-        //如果依赖的序列小于要等待的序列
+        //如果依赖的序列小于要等待的序列 要等依赖的序列先处理完
         while ((availableSequence = dependentSequence.get()) < sequence) {
             counter = applyWaitMethod(barrier, counter);
         }
@@ -45,10 +45,10 @@ public final class YieldingWaitStrategy implements WaitStrategy {
     public void signalAllWhenBlocking() {
     }
 
+    //线程 进行等待 而不是一直循环
     private int applyWaitMethod(final SequenceBarrier barrier, int counter)
             throws AlertException {
         barrier.checkAlert();
-        //如果为0 则线程结束
         if (0 == counter) {
             Thread.yield();
         } else {

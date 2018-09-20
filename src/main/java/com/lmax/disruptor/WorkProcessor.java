@@ -18,7 +18,7 @@ package com.lmax.disruptor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 每个消费者 对应一个 记录处理过程
+ * 对于多个相同消费者
  * <p>A {@link WorkProcessor} wraps a single {@link WorkHandler}, effectively consuming the sequence
  * and ensuring appropriate barriers.</p>
  * <p>
@@ -27,22 +27,22 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @param <T> event implementation storing the details for the work to processed.
  */
 public final class WorkProcessor<T> implements EventProcessor {
-    //是否开始
+    //此执行器是否开始
     private final AtomicBoolean running = new AtomicBoolean(false);
-    //当前执行器对应的序列
+    //此WorkProcessor对应的处理完的序列 指示此执行器执行到了哪里
     private final Sequence sequence = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
-    //对应的数据环
+    //对应的数据环 通过序列从其中取值
     private final RingBuffer<T> ringBuffer;
-    //还有序列屏障
+    //还有序列屏障，通过控制序列  这个应该也是全局只有一个
     private final SequenceBarrier sequenceBarrier;
     //真正消费者执行消费的操作
     private final WorkHandler<? super T> workHandler;
     //异常处理器
     private final ExceptionHandler<? super T> exceptionHandler;
-    //开始工作的序列
+    //开始工作的序列 多个消费者共享这个工作序列，防止重复消费数据
     private final Sequence workSequence;
 
-    //事件结束时 设置序列为一个最大值
+    //事件结束时 是否自动释放
     private final EventReleaser eventReleaser = new EventReleaser() {
         @Override
         public void release() {
@@ -72,6 +72,7 @@ public final class WorkProcessor<T> implements EventProcessor {
         this.sequenceBarrier = sequenceBarrier;
         this.workHandler = workHandler;
         this.exceptionHandler = exceptionHandler;
+        //初始化 从哪个序列还是消费
         this.workSequence = workSequence;
 
         //处理器是否还继承了其他事件
@@ -90,6 +91,7 @@ public final class WorkProcessor<T> implements EventProcessor {
     @Override
     public void halt() {
         running.set(false);
+        //发出警告不在产生新的序列值妈？
         sequenceBarrier.alert();
     }
 
@@ -115,7 +117,7 @@ public final class WorkProcessor<T> implements EventProcessor {
         notifyStart();
         //开始处理序列
         boolean processedSequence = true;
-        //默认是一个最小的值
+        //可获取的最小的消息序列
         long cachedAvailableSequence = Long.MIN_VALUE;
         //获取当前对应的序列值
         long nextSequence = sequence.get();
@@ -129,33 +131,36 @@ public final class WorkProcessor<T> implements EventProcessor {
                 // typically, this will be true
                 // this prevents the sequence getting too far forward if an exception
                 // is thrown from the WorkHandler
-                //如果抛出异常了 说明这个事件没有处理 需要下次在次处理
+                //如果此次要处理的事件没有发布 则 processedSequence = false;就是下次循环的时候 不能在重新获取序列了
                 if (processedSequence) {
                     processedSequence = false;
                     //cas获取一个序列
                     do {
-                        //序列值+1
+                        //获取要处理的下一个序列值
                         nextSequence = workSequence.get() + 1L;
-                        //当前序列值
+                        //处理的上一个序列值
                         sequence.set(nextSequence - 1L);
                     }
+                    //确保获取的是workSequence的下一个序列值
                     while (!workSequence.compareAndSet(nextSequence - 1L, nextSequence));
                 }
-                //如果下一个序列在可获取的序列之前 则可以获取
+                //如果要获取的序列在可获取的序列之前 则可以获取
                 if (cachedAvailableSequence >= nextSequence) {
                     //获取对应序列的事件
                     event = ringBuffer.get(nextSequence);
                     //事件处理器开始处理这个事件
                     workHandler.onEvent(event);
+                    //处理成功设置为true
                     processedSequence = true;
                 } else {
-                    //看能否获取到这个序列的数据
+                    //此时还没有这个序列的事件
                     cachedAvailableSequence = sequenceBarrier.waitFor(nextSequence);
                 }
             } catch (final TimeoutException e) {
                 //如果超时了就通知超时
                 notifyTimeout(sequence.get());
             } catch (final AlertException ex) {
+                //如果sequenceBarrier.alert()时会抛出一个异常 waitFor时会在这里捕获到异常 就停止了
                 if (!running.get()) {
                     break;
                 }
@@ -172,6 +177,7 @@ public final class WorkProcessor<T> implements EventProcessor {
 
         running.set(false);
     }
+
     //超时处理
     private void notifyTimeout(final long availableSequence) {
         try {

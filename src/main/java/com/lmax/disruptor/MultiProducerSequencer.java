@@ -23,19 +23,22 @@ import com.lmax.disruptor.util.Util;
 
 
 /**
+ * 多个生产者对应的序列器
  * <p>Coordinator for claiming sequences for access to a data structure while tracking dependent {@link Sequence}s.
  * Suitable for use for sequencing across multiple publisher threads.</p>
- *
+ * <p>
  * <p> * Note on {@link Sequencer#getCursor()}:  With this sequencer the cursor value is updated after the call
  * to {@link Sequencer#next()}, to determine the highest available sequence that can be read, then
  * {@link Sequencer#getHighestPublishedSequence(long, long)} should be used.</p>
  */
-public final class MultiProducerSequencer extends AbstractSequencer
-{
+public final class MultiProducerSequencer extends AbstractSequencer {
+    //还是通过反射的方式获取
     private static final Unsafe UNSAFE = Util.getUnsafe();
+    //数组的起始地址
     private static final long BASE = UNSAFE.arrayBaseOffset(int[].class);
+    //数组的增量大小
     private static final long SCALE = UNSAFE.arrayIndexScale(int[].class);
-
+    //最小序列
     private final Sequence gatingSequenceCache = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
 
     // availableBuffer tracks the state of each ringbuffer slot
@@ -50,12 +53,15 @@ public final class MultiProducerSequencer extends AbstractSequencer
      * @param bufferSize   the size of the buffer that this will sequence over.
      * @param waitStrategy for those waiting on sequences.
      */
-    public MultiProducerSequencer(int bufferSize, final WaitStrategy waitStrategy)
-    {
+    public MultiProducerSequencer(int bufferSize, final WaitStrategy waitStrategy) {
         super(bufferSize, waitStrategy);
+        //创建和bufferSize大小的数组
         availableBuffer = new int[bufferSize];
+        //1111..111的形式
         indexMask = bufferSize - 1;
+        //获取到bufferSize是2的多少次方
         indexShift = Util.log2(bufferSize);
+        //availableBuffer赋予初始值 -1
         initialiseAvailableBuffer();
     }
 
@@ -63,23 +69,20 @@ public final class MultiProducerSequencer extends AbstractSequencer
      * @see Sequencer#hasAvailableCapacity(int)
      */
     @Override
-    public boolean hasAvailableCapacity(final int requiredCapacity)
-    {
+    public boolean hasAvailableCapacity(final int requiredCapacity) {
         return hasAvailableCapacity(gatingSequences, requiredCapacity, cursor.get());
     }
 
-    private boolean hasAvailableCapacity(Sequence[] gatingSequences, final int requiredCapacity, long cursorValue)
-    {
+    private boolean hasAvailableCapacity(Sequence[] gatingSequences, final int requiredCapacity, long cursorValue) {
         long wrapPoint = (cursorValue + requiredCapacity) - bufferSize;
         long cachedGatingSequence = gatingSequenceCache.get();
 
-        if (wrapPoint > cachedGatingSequence || cachedGatingSequence > cursorValue)
-        {
+        if (wrapPoint > cachedGatingSequence || cachedGatingSequence > cursorValue) {
             long minSequence = Util.getMinimumSequence(gatingSequences, cursorValue);
+            //设置最小的序列
             gatingSequenceCache.set(minSequence);
 
-            if (wrapPoint > minSequence)
-            {
+            if (wrapPoint > minSequence) {
                 return false;
             }
         }
@@ -91,8 +94,7 @@ public final class MultiProducerSequencer extends AbstractSequencer
      * @see Sequencer#claim(long)
      */
     @Override
-    public void claim(long sequence)
-    {
+    public void claim(long sequence) {
         cursor.set(sequence);
     }
 
@@ -100,8 +102,7 @@ public final class MultiProducerSequencer extends AbstractSequencer
      * @see Sequencer#next()
      */
     @Override
-    public long next()
-    {
+    public long next() {
         return next(1);
     }
 
@@ -109,38 +110,33 @@ public final class MultiProducerSequencer extends AbstractSequencer
      * @see Sequencer#next(int)
      */
     @Override
-    public long next(int n)
-    {
-        if (n < 1)
-        {
+    public long next(int n) {
+        if (n < 1) {
             throw new IllegalArgumentException("n must be > 0");
         }
 
         long current;
         long next;
 
-        do
-        {
+        do {
+            //当前序列
             current = cursor.get();
             next = current + n;
-
+            //要求的最小的序列
             long wrapPoint = next - bufferSize;
+            //获取最小的序列
             long cachedGatingSequence = gatingSequenceCache.get();
 
-            if (wrapPoint > cachedGatingSequence || cachedGatingSequence > current)
-            {
+            if (wrapPoint > cachedGatingSequence || cachedGatingSequence > current) {
                 long gatingSequence = Util.getMinimumSequence(gatingSequences, current);
 
-                if (wrapPoint > gatingSequence)
-                {
+                if (wrapPoint > gatingSequence) {
                     LockSupport.parkNanos(1); // TODO, should we spin based on the wait strategy?
                     continue;
                 }
-
+                //设置门口序列为最小的一个序列
                 gatingSequenceCache.set(gatingSequence);
-            }
-            else if (cursor.compareAndSet(current, next))
-            {
+            } else if (cursor.compareAndSet(current, next)) {
                 break;
             }
         }
@@ -153,8 +149,7 @@ public final class MultiProducerSequencer extends AbstractSequencer
      * @see Sequencer#tryNext()
      */
     @Override
-    public long tryNext() throws InsufficientCapacityException
-    {
+    public long tryNext() throws InsufficientCapacityException {
         return tryNext(1);
     }
 
@@ -162,23 +157,19 @@ public final class MultiProducerSequencer extends AbstractSequencer
      * @see Sequencer#tryNext(int)
      */
     @Override
-    public long tryNext(int n) throws InsufficientCapacityException
-    {
-        if (n < 1)
-        {
+    public long tryNext(int n) throws InsufficientCapacityException {
+        if (n < 1) {
             throw new IllegalArgumentException("n must be > 0");
         }
 
         long current;
         long next;
 
-        do
-        {
+        do {
             current = cursor.get();
             next = current + n;
-
-            if (!hasAvailableCapacity(gatingSequences, n, current))
-            {
+            //如果没有对应的序列 就直接抛出异常
+            if (!hasAvailableCapacity(gatingSequences, n, current)) {
                 throw InsufficientCapacityException.INSTANCE;
             }
         }
@@ -191,17 +182,15 @@ public final class MultiProducerSequencer extends AbstractSequencer
      * @see Sequencer#remainingCapacity()
      */
     @Override
-    public long remainingCapacity()
-    {
+    public long remainingCapacity() {
         long consumed = Util.getMinimumSequence(gatingSequences, cursor.get());
         long produced = cursor.get();
         return getBufferSize() - (produced - consumed);
     }
 
-    private void initialiseAvailableBuffer()
-    {
-        for (int i = availableBuffer.length - 1; i != 0; i--)
-        {
+    //把availableBuffer赋予初值-1
+    private void initialiseAvailableBuffer() {
+        for (int i = availableBuffer.length - 1; i != 0; i--) {
             setAvailableBufferValue(i, -1);
         }
 
@@ -212,8 +201,7 @@ public final class MultiProducerSequencer extends AbstractSequencer
      * @see Sequencer#publish(long)
      */
     @Override
-    public void publish(final long sequence)
-    {
+    public void publish(final long sequence) {
         setAvailable(sequence);
         waitStrategy.signalAllWhenBlocking();
     }
@@ -222,10 +210,8 @@ public final class MultiProducerSequencer extends AbstractSequencer
      * @see Sequencer#publish(long, long)
      */
     @Override
-    public void publish(long lo, long hi)
-    {
-        for (long l = lo; l <= hi; l++)
-        {
+    public void publish(long lo, long hi) {
+        for (long l = lo; l <= hi; l++) {
             setAvailable(l);
         }
         waitStrategy.signalAllWhenBlocking();
@@ -250,13 +236,12 @@ public final class MultiProducerSequencer extends AbstractSequencer
      * buffer), when we have new data and successfully claimed a slot we can simply
      * write over the top.
      */
-    private void setAvailable(final long sequence)
-    {
+    private void setAvailable(final long sequence) {
         setAvailableBufferValue(calculateIndex(sequence), calculateAvailabilityFlag(sequence));
     }
 
-    private void setAvailableBufferValue(int index, int flag)
-    {
+    private void setAvailableBufferValue(int index, int flag) {
+        //通过操作地址的方式 来进行赋值
         long bufferAddress = (index * SCALE) + BASE;
         UNSAFE.putOrderedInt(availableBuffer, bufferAddress, flag);
     }
@@ -265,8 +250,7 @@ public final class MultiProducerSequencer extends AbstractSequencer
      * @see Sequencer#isAvailable(long)
      */
     @Override
-    public boolean isAvailable(long sequence)
-    {
+    public boolean isAvailable(long sequence) {
         int index = calculateIndex(sequence);
         int flag = calculateAvailabilityFlag(sequence);
         long bufferAddress = (index * SCALE) + BASE;
@@ -274,12 +258,9 @@ public final class MultiProducerSequencer extends AbstractSequencer
     }
 
     @Override
-    public long getHighestPublishedSequence(long lowerBound, long availableSequence)
-    {
-        for (long sequence = lowerBound; sequence <= availableSequence; sequence++)
-        {
-            if (!isAvailable(sequence))
-            {
+    public long getHighestPublishedSequence(long lowerBound, long availableSequence) {
+        for (long sequence = lowerBound; sequence <= availableSequence; sequence++) {
+            if (!isAvailable(sequence)) {
                 return sequence - 1;
             }
         }
@@ -287,13 +268,11 @@ public final class MultiProducerSequencer extends AbstractSequencer
         return availableSequence;
     }
 
-    private int calculateAvailabilityFlag(final long sequence)
-    {
+    private int calculateAvailabilityFlag(final long sequence) {
         return (int) (sequence >>> indexShift);
     }
 
-    private int calculateIndex(final long sequence)
-    {
+    private int calculateIndex(final long sequence) {
         return ((int) sequence) & indexMask;
     }
 }

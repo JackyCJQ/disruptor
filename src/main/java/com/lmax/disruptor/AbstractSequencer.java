@@ -31,9 +31,9 @@ public abstract class AbstractSequencer implements Sequencer {
             AtomicReferenceFieldUpdater.newUpdater(AbstractSequencer.class, Sequence[].class, "gatingSequences");
     //环的大小
     protected final int bufferSize;
-    //生产者等待序列
+    //消费者等待序列
     protected final WaitStrategy waitStrategy;
-    //一个Sequence类型的指针，默认指向-1
+    //一个Sequence类型的指针，当前可获取的最小的序列
     protected final Sequence cursor = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
     //消费者可获取的最小的序列 因为可能是多个消费者 所以需要volatile 确保多个消费者并发反问
     protected volatile Sequence[] gatingSequences = new Sequence[0];
@@ -77,6 +77,7 @@ public abstract class AbstractSequencer implements Sequencer {
 
     /**
      * 原子的修改
+     * 修改本类中的引用 gatingSequences
      *
      * @see Sequencer#addGatingSequences(Sequence...)
      */
@@ -87,6 +88,7 @@ public abstract class AbstractSequencer implements Sequencer {
 
     /**
      * 原子的修改
+     * 修改本类中的引用 gatingSequences
      *
      * @see Sequencer#removeGatingSequence(Sequence)
      */
@@ -106,6 +108,7 @@ public abstract class AbstractSequencer implements Sequencer {
     }
 
     /**
+     * 默认只有一种序列屏障实现 ProcessingSequenceBarrier
      * @see Sequencer#newBarrier(Sequence...)
      */
     @Override
