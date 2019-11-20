@@ -22,31 +22,37 @@ package com.lmax.disruptor;
  */
 public interface SequenceBarrier {
     /**
+     * 获取可获取到的最大的序列
      * Wait for the given sequence to be available for consumption.
      */
     long waitFor(long sequence) throws AlertException, InterruptedException, TimeoutException;
 
     /**
+     * 获取可读取的最小的序列
      * Get the current cursor value that can be read.
      */
     long getCursor();
 
     /**
+     * 是否处于警告状态
      * The current alert status for the barrier.
      */
     boolean isAlerted();
 
     /**
+     * 设置为警告状态
      * Alert the {@link EventProcessor}s of a status change and stay in this status until cleared.
      */
     void alert();
 
     /**
+     * 清除警告状态
      * Clear the current alert status.
      */
     void clearAlert();
 
     /**
+     * 检查警告状态会抛出异常
      * Check if an alert has been raised and throw an {@link AlertException} if it has.
      */
     void checkAlert() throws AlertException;

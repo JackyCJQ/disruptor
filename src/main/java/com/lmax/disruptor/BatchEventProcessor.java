@@ -43,17 +43,17 @@ public final class BatchEventProcessor<T> implements EventProcessor {
     // 错误处理器
     private ExceptionHandler<? super T> exceptionHandler = new FatalExceptionHandler();
 
-    //就是ringbuffer
+    //ringbuffer继承这个接口 在执行器执行过程中需要从ringbuffer中获取数据
     private final DataProvider<T> dataProvider;
     //消费者不直接和ringbuffer交互，而是和SequenceBarrier交互，减少对ringbuffer的冲击
     private final SequenceBarrier sequenceBarrier;
     //具体的事件处理
     private final EventHandler<? super T> eventHandler;
-    //序列号
+    //当前执行器执行到的序列，默认是-1 数据是从0开始的
     private final Sequence sequence = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
     //超时处理
     private final TimeoutHandler timeoutHandler;
-    //开始
+    //批处理器开始时处理的个数
     private final BatchStartAware batchStartAware;
 
     /**
@@ -69,7 +69,7 @@ public final class BatchEventProcessor<T> implements EventProcessor {
         this.dataProvider = dataProvider;
         this.sequenceBarrier = sequenceBarrier;
         this.eventHandler = eventHandler;
-        //回掉这个序列
+        //处理器对应处理的序列
         if (eventHandler instanceof SequenceReportingEventHandler) {
             ((SequenceReportingEventHandler<?>) eventHandler).setSequenceCallback(sequence);
         }
@@ -85,7 +85,9 @@ public final class BatchEventProcessor<T> implements EventProcessor {
 
     @Override
     public void halt() {
+        //设置执行器的状态
         running.set(HALTED);
+        //设置屏障状态为警告，
         sequenceBarrier.alert();
     }
 
@@ -95,6 +97,7 @@ public final class BatchEventProcessor<T> implements EventProcessor {
     }
 
     /**
+     * 设置自己定义的错误处理器
      * Set a new {@link ExceptionHandler} for handling exceptions propagated out of the {@link BatchEventProcessor}
      *
      * @param exceptionHandler to replace the existing exceptionHandler.
@@ -109,16 +112,17 @@ public final class BatchEventProcessor<T> implements EventProcessor {
 
     /**
      * It is ok to have another thread rerun this method after a halt().
+     * 通过线程的方式来调用执行
      *
      * @throws IllegalStateException if this object instance is already running in a thread
      */
     @Override
     public void run() {
-        //如果是空闲的状态，改变为运行状态
+        //cas操作 如果是空闲的状态，改变为运行状态
         if (running.compareAndSet(IDLE, RUNNING)) {
-            //清除状态
+            //开始运行了 清除警告标志
             sequenceBarrier.clearAlert();
-
+            //通知开始执行了
             notifyStart();
             try {
                 if (running.get() == RUNNING) {
@@ -126,7 +130,7 @@ public final class BatchEventProcessor<T> implements EventProcessor {
                 }
             } finally {
                 notifyShutdown();
-                //设置为空闲状态
+                //执行完一次，设置为空闲状态，等待下一个线程来调用
                 running.set(IDLE);
             }
         } else {
@@ -144,14 +148,15 @@ public final class BatchEventProcessor<T> implements EventProcessor {
 
     private void processEvents() {
         T event = null;
-        //获取下一个序列
+        //获取可执行的下一个序列，初始化为-1 开始执行的第一个序列为0
         long nextSequence = sequence.get() + 1L;
 
         while (true) {
             try {
-                //获取是否存在对应的序列
+                //可获取的最大序列
                 final long availableSequence = sequenceBarrier.waitFor(nextSequence);
                 if (batchStartAware != null) {
+                    //此次批处理的数量
                     batchStartAware.onBatchStart(availableSequence - nextSequence + 1);
                 }
                 //如果存在下一个序列
@@ -161,11 +166,13 @@ public final class BatchEventProcessor<T> implements EventProcessor {
                     eventHandler.onEvent(event, nextSequence, nextSequence == availableSequence);
                     nextSequence++;
                 }
-
+                //设置处理完的序列
                 sequence.set(availableSequence);
             } catch (final TimeoutException e) {
                 notifyTimeout(sequence.get());
-            } catch (final AlertException ex) {
+            }
+            //等待序列屏障结束时抛出的AlertException异常，通过在这里捕获来结束
+            catch (final AlertException ex) {
                 if (running.get() != RUNNING) {
                     break;
                 }
@@ -181,6 +188,7 @@ public final class BatchEventProcessor<T> implements EventProcessor {
      * 提早结束
      */
     private void earlyExit() {
+        //通知开始和结束的通知
         notifyStart();
         notifyShutdown();
     }
@@ -193,6 +201,7 @@ public final class BatchEventProcessor<T> implements EventProcessor {
     private void notifyTimeout(final long availableSequence) {
         try {
             if (timeoutHandler != null) {
+                //通知在哪个序列上超时了
                 timeoutHandler.onTimeout(availableSequence);
             }
         } catch (Throwable e) {
@@ -207,6 +216,7 @@ public final class BatchEventProcessor<T> implements EventProcessor {
     private void notifyStart() {
         if (eventHandler instanceof LifecycleAware) {
             try {
+                //通知执行器开始执行了
                 ((LifecycleAware) eventHandler).onStart();
             } catch (final Throwable ex) {
                 exceptionHandler.handleOnStartException(ex);
@@ -221,6 +231,7 @@ public final class BatchEventProcessor<T> implements EventProcessor {
     private void notifyShutdown() {
         if (eventHandler instanceof LifecycleAware) {
             try {
+                //通知执行器任务结束了
                 ((LifecycleAware) eventHandler).onShutdown();
             } catch (final Throwable ex) {
                 exceptionHandler.handleOnShutdownException(ex);

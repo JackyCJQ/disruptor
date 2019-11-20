@@ -22,6 +22,7 @@ package com.lmax.disruptor;
  */
 public interface WaitStrategy {
 
+    //获取可消费的最大的序列
     long waitFor(long sequence, Sequence cursor, Sequence dependentSequence, SequenceBarrier barrier)
             throws AlertException, InterruptedException, TimeoutException;
 

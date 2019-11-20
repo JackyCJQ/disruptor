@@ -53,7 +53,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class Disruptor<T> {
     //对RingBuffer的引用
     private final RingBuffer<T> ringBuffer;
-    //消费者事件处理器
+    //线程执行器
     private final Executor executor;
     //消费者集合
     private final ConsumerRepository<T> consumerRepository = new ConsumerRepository<>();
@@ -134,7 +134,7 @@ public class Disruptor<T> {
     @SuppressWarnings("varargs")
     @SafeVarargs
     public final EventHandlerGroup<T> handleEventsWith(final EventHandler<? super T>... handlers) {
-        //所有的事件处理器的初始化指针为 -1
+        //消费的时候处理器没有先后关系 所以第一个参数为new Sequence[0]
         return createEventProcessors(new Sequence[0], handlers);
     }
 
@@ -343,7 +343,7 @@ public class Disruptor<T> {
 
     private void updateGatingSequencesForNextInChain(final Sequence[] barrierSequences, final Sequence[] processorSequences) {
         if (processorSequences.length > 0) {
-            //添加每个处理器的门槛序列值
+            //统一设置每个处理器的门槛指针
             ringBuffer.addGatingSequences(processorSequences);
             for (final Sequence barrierSequence : barrierSequences) {
                 ringBuffer.removeGatingSequence(barrierSequence);

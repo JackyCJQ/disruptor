@@ -31,6 +31,7 @@ public final class FatalExceptionHandler implements ExceptionHandler<Object> {
         this.logger = LOGGER;
     }
 
+    //可以通过自己定义的错误处理器的日志实现
     public FatalExceptionHandler(final Logger logger) {
         this.logger = logger;
     }

@@ -23,24 +23,21 @@ import com.lmax.disruptor.SequenceBarrier;
 import java.util.concurrent.Executor;
 
 /**
- * 事件处理过程中的信息
- * <p>Wrapper class to tie together a particular event processing stage</p>
- * <p>
  * <p>Tracks the event processor instance, the event handler instance, and sequence barrier which the stage is attached to.</p>
  *
  * @param <T> the type of the configured {@link EventHandler}
  */
 class EventProcessorInfo<T> implements ConsumerInfo {
-    //对应的事件处理过程器
+    //跟踪的事件处理过程器
     private final EventProcessor eventprocessor;
-    //事件处理器
+    //对应的事件处理器
     private final EventHandler<? super T> handler;
-    //对应的序列屏障
+    //与事件处理过程器交互的序列屏障
     private final SequenceBarrier barrier;
     //是否是处于结束 默认是结束的
     private boolean endOfChain = true;
 
-    //根据传入信息 记录数据
+    //传入对应的数据
     EventProcessorInfo(final EventProcessor eventprocessor, final EventHandler<? super T> handler, final SequenceBarrier barrier) {
         this.eventprocessor = eventprocessor;
         this.handler = handler;
@@ -51,6 +48,7 @@ class EventProcessorInfo<T> implements ConsumerInfo {
         return eventprocessor;
     }
 
+    //得到事件处理器处理过程中对应的序列
     @Override
     public Sequence[] getSequences() {
         return new Sequence[]{eventprocessor.getSequence()};
@@ -75,6 +73,7 @@ class EventProcessorInfo<T> implements ConsumerInfo {
         executor.execute(eventprocessor);
     }
 
+    //通过事件处理过程器 来停止执行
     @Override
     public void halt() {
         eventprocessor.halt();
@@ -88,6 +87,7 @@ class EventProcessorInfo<T> implements ConsumerInfo {
         endOfChain = false;
     }
 
+    //通过事件处理过程器 来判断是否还在继续执行
     @Override
     public boolean isRunning() {
         return eventprocessor.isRunning();

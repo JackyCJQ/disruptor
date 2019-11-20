@@ -20,10 +20,11 @@ import java.util.Arrays;
 import com.lmax.disruptor.util.Util;
 
 /**
+ * 在一个序列之前，要执行的一组序列
  * Hides a group of Sequences behind a single Sequence
  */
-public final class FixedSequenceGroup extends Sequence
-{
+public final class FixedSequenceGroup extends Sequence {
+    //在序列执行之前要执行的序列
     private final Sequence[] sequences;
 
     /**
@@ -31,25 +32,23 @@ public final class FixedSequenceGroup extends Sequence
      *
      * @param sequences the list of sequences to be tracked under this sequence group
      */
-    public FixedSequenceGroup(Sequence[] sequences)
-    {
+    public FixedSequenceGroup(Sequence[] sequences) {
         this.sequences = Arrays.copyOf(sequences, sequences.length);
     }
 
     /**
      * Get the minimum sequence value for the group.
+     * 获取者一组序列中最小的一个序列
      *
      * @return the minimum sequence value for the group.
      */
     @Override
-    public long get()
-    {
+    public long get() {
         return Util.getMinimumSequence(sequences);
     }
 
     @Override
-    public String toString()
-    {
+    public String toString() {
         return Arrays.toString(sequences);
     }
 
@@ -57,8 +56,7 @@ public final class FixedSequenceGroup extends Sequence
      * Not supported.
      */
     @Override
-    public void set(long value)
-    {
+    public void set(long value) {
         throw new UnsupportedOperationException();
     }
 
@@ -66,8 +64,7 @@ public final class FixedSequenceGroup extends Sequence
      * Not supported.
      */
     @Override
-    public boolean compareAndSet(long expectedValue, long newValue)
-    {
+    public boolean compareAndSet(long expectedValue, long newValue) {
         throw new UnsupportedOperationException();
     }
 
@@ -75,8 +72,7 @@ public final class FixedSequenceGroup extends Sequence
      * Not supported.
      */
     @Override
-    public long incrementAndGet()
-    {
+    public long incrementAndGet() {
         throw new UnsupportedOperationException();
     }
 
@@ -84,8 +80,7 @@ public final class FixedSequenceGroup extends Sequence
      * Not supported.
      */
     @Override
-    public long addAndGet(long increment)
-    {
+    public long addAndGet(long increment) {
         throw new UnsupportedOperationException();
     }
 }

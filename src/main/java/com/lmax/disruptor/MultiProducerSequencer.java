@@ -38,7 +38,7 @@ public final class MultiProducerSequencer extends AbstractSequencer {
     private static final long BASE = UNSAFE.arrayBaseOffset(int[].class);
     //数组的增量大小
     private static final long SCALE = UNSAFE.arrayIndexScale(int[].class);
-    //最小序列
+    //默认最小的序列-1
     private final Sequence gatingSequenceCache = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
 
     // availableBuffer tracks the state of each ringbuffer slot
@@ -54,6 +54,7 @@ public final class MultiProducerSequencer extends AbstractSequencer {
      * @param waitStrategy for those waiting on sequences.
      */
     public MultiProducerSequencer(int bufferSize, final WaitStrategy waitStrategy) {
+        //创建指定大小和策略的数据环
         super(bufferSize, waitStrategy);
         //创建和bufferSize大小的数组
         availableBuffer = new int[bufferSize];
@@ -70,11 +71,14 @@ public final class MultiProducerSequencer extends AbstractSequencer {
      */
     @Override
     public boolean hasAvailableCapacity(final int requiredCapacity) {
+        //gatingSequences为new Sequence[0]   cursor.get()当前可获取的最小的序列，也就是生产者可发布事件的序列
         return hasAvailableCapacity(gatingSequences, requiredCapacity, cursor.get());
     }
 
     private boolean hasAvailableCapacity(Sequence[] gatingSequences, final int requiredCapacity, long cursorValue) {
+        //可发布事件的最小序列+要求的大小-buffersize
         long wrapPoint = (cursorValue + requiredCapacity) - bufferSize;
+        //路由的最小的序列
         long cachedGatingSequence = gatingSequenceCache.get();
 
         if (wrapPoint > cachedGatingSequence || cachedGatingSequence > cursorValue) {

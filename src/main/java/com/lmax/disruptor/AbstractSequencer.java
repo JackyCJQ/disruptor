@@ -29,13 +29,13 @@ public abstract class AbstractSequencer implements Sequencer {
     //原子更新操作 消费者消费事件的时候 会更新gatingSequences 这个字段
     private static final AtomicReferenceFieldUpdater<AbstractSequencer, Sequence[]> SEQUENCE_UPDATER =
             AtomicReferenceFieldUpdater.newUpdater(AbstractSequencer.class, Sequence[].class, "gatingSequences");
-    //环的大小
+    //环的大小，也变相的设置sequencer可控制序列的大小
     protected final int bufferSize;
-    //消费者等待序列
+    //消费者等待序列策略
     protected final WaitStrategy waitStrategy;
-    //一个Sequence类型的指针，当前可获取的最小的序列
+    //一个Sequence类型的指针，当前可获取的最小的序列，也就是生产者可发布事件的序列
     protected final Sequence cursor = new Sequence(Sequencer.INITIAL_CURSOR_VALUE);
-    //消费者可获取的最小的序列 因为可能是多个消费者 所以需要volatile 确保多个消费者并发反问
+    //消费者可获取的最小的序列 因为可能是多个消费者 所以需要volatile 确保多个消费者并发访问
     protected volatile Sequence[] gatingSequences = new Sequence[0];
 
     /**
@@ -45,6 +45,7 @@ public abstract class AbstractSequencer implements Sequencer {
      * @param waitStrategy The wait strategy used by this sequencer
      */
     public AbstractSequencer(int bufferSize, WaitStrategy waitStrategy) {
+        //在这里又加入了以下验证必须是2的n次方
         if (bufferSize < 1) {
             throw new IllegalArgumentException("bufferSize must not be less than 1");
         }
@@ -58,7 +59,7 @@ public abstract class AbstractSequencer implements Sequencer {
     }
 
     /**
-     * 返回对应的long值，获取当前指针指向的序列
+     * 返回对应的long值，获取当前发布指针的序列
      *
      * @see Sequencer#getCursor()
      */
@@ -68,6 +69,7 @@ public abstract class AbstractSequencer implements Sequencer {
     }
 
     /**
+     * 返回环的大小
      * @see Sequencer#getBufferSize()
      */
     @Override
@@ -109,6 +111,7 @@ public abstract class AbstractSequencer implements Sequencer {
 
     /**
      * 默认只有一种序列屏障实现 ProcessingSequenceBarrier
+     *
      * @see Sequencer#newBarrier(Sequence...)
      */
     @Override

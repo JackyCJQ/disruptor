@@ -17,6 +17,7 @@ package com.lmax.disruptor;
 
 
 /**
+ * 全局只有这一个实现
  * 消费者处理过程中的序列屏障
  * <p>
  * 最简单的就是生产者和消费者分别在不同的线程中进行 通过cursorSequence 联系两者之间的关系
@@ -35,6 +36,7 @@ final class ProcessingSequenceBarrier implements SequenceBarrier {
     //生产者直接交互的对象
     private final Sequencer sequencer;
 
+    //从外面获取到对应的数据
     ProcessingSequenceBarrier(
             final Sequencer sequencer,
             final WaitStrategy waitStrategy,
@@ -42,8 +44,9 @@ final class ProcessingSequenceBarrier implements SequenceBarrier {
             final Sequence[] dependentSequences) {
         this.sequencer = sequencer;
         this.waitStrategy = waitStrategy;
+        //与生产者共用的
         this.cursorSequence = cursorSequence;
-        //没有依赖的
+        //多个处理器之间没有先后关系 所以依赖的序列设置为其本身 每次自身执行完就可以了
         if (0 == dependentSequences.length) {
             dependentSequence = cursorSequence;
         } else {
@@ -56,21 +59,20 @@ final class ProcessingSequenceBarrier implements SequenceBarrier {
     /**
      * 等待下一个序列号
      */
-    public long waitFor(final long sequence)
-            throws AlertException, InterruptedException, TimeoutException {
+    public long waitFor(final long sequence) throws AlertException, InterruptedException, TimeoutException {
         //如果停止的话 这里会抛出一个异常 消费者获取到这个异常 就可以终止等待
         checkAlert();
         //通过等待策略里面来获取可得到的序列
         long availableSequence = waitStrategy.waitFor(sequence, cursorSequence, dependentSequence, this);
-        //如果获取的序列小于当前序列，说明可以获取到事件
+        //对于有些waitStrategy 可能会产生这种情况
         if (availableSequence < sequence) {
             return availableSequence;
         }
-        //如果想要获取还没有发布事件的序列 默认就是返回availableSequence
+        //就是返回可获取到的最大的序列  默认就是返回availableSequence
         return sequencer.getHighestPublishedSequence(sequence, availableSequence);
     }
 
-    //如果有依赖 则需要等待依赖完成
+    //获取可以消费的序列
     @Override
     public long getCursor() {
         return dependentSequence.get();
@@ -84,15 +86,17 @@ final class ProcessingSequenceBarrier implements SequenceBarrier {
     @Override
     public void alert() {
         alerted = true;
-        //当有阻塞的要通知所有的 状态已经更新
+        //waitStrategy如果是阻塞的策略则进行通知
         waitStrategy.signalAllWhenBlocking();
     }
 
+    //清除警告
     @Override
     public void clearAlert() {
         alerted = false;
     }
 
+    //抛出异常供消费者感知
     @Override
     public void checkAlert() throws AlertException {
         if (alerted) {

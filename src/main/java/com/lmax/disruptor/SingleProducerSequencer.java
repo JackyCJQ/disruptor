@@ -37,7 +37,7 @@ abstract class SingleProducerSequencerFields extends SingleProducerSequencerPad 
     /**
      * Set to -1 as sequence starting point
      */
-    //下一个序列值 不断增加的
+    //初始化序列为-1 也就是获取的下一个序列
     long nextValue = Sequence.INITIAL_VALUE;
     //控制不能无限增加的一个最小值 当nextValue-buffersize>这个值的时候 就不能贼增加nextValue，发布的可获取的序列号最小的序列
     long cachedValue = Sequence.INITIAL_VALUE;

@@ -33,7 +33,7 @@ abstract class RingBufferPad {
  * @param <E>
  */
 abstract class RingBufferFields<E> extends RingBufferPad {
-    //填充
+    //填充的个数
     private static final int BUFFER_PAD;
     //引用型数组的起始地址
     private static final long REF_ARRAY_BASE;
@@ -88,8 +88,9 @@ abstract class RingBufferFields<E> extends RingBufferPad {
         }
         //为什么要2的n次方 因为2的n次方-1 的二进制为 1111..111 这样求余的时候直接进行与操作速度比较快
         this.indexMask = bufferSize - 1;
-        //填充数据，为什么要填充这么多数据？？？
+        //填充数据，前后都要填充128个字节 两个缓冲行，就是要是数据都在一个缓冲行上，预加载的时候都是ringbuffer数据，这样就会充分利用预加载
         this.entries = new Object[sequencer.getBufferSize() + 2 * BUFFER_PAD];
+        //开始预先填充数据
         fill(eventFactory);
     }
 
@@ -124,13 +125,14 @@ public final class RingBuffer<E> extends RingBufferFields<E> implements Cursored
     public static final long INITIAL_CURSOR_VALUE = Sequence.INITIAL_VALUE;
     protected long p1, p2, p3, p4, p5, p6, p7;
 
-    //初始化的时候就填充满了ringbuffer
+    //初始化数据环 填充数据
     RingBuffer(EventFactory<E> eventFactory, Sequencer sequencer) {
         super(eventFactory, sequencer);
     }
 
     /**
      * 创建对应的RingBuffer
+     * 单生产者和多生产者的不同就是对应的sequencer 不一致
      *
      * @param factory
      * @param bufferSize
@@ -139,7 +141,7 @@ public final class RingBuffer<E> extends RingBufferFields<E> implements Cursored
      * @return
      */
     public static <E> RingBuffer<E> createMultiProducer(EventFactory<E> factory, int bufferSize, WaitStrategy waitStrategy) {
-        //多生产者序列
+        //多生产者序列屏障
         MultiProducerSequencer sequencer = new MultiProducerSequencer(bufferSize, waitStrategy);
 
         return new RingBuffer<E>(factory, sequencer);
@@ -171,7 +173,13 @@ public final class RingBuffer<E> extends RingBufferFields<E> implements Cursored
         return new RingBuffer<E>(factory, sequencer);
     }
 
-
+    /**
+     * 不指定阻塞策略 默认是BlockingWaitStrategy
+     * @param factory
+     * @param bufferSize
+     * @param <E>
+     * @return
+     */
     public static <E> RingBuffer<E> createSingleProducer(EventFactory<E> factory, int bufferSize) {
         return createSingleProducer(factory, bufferSize, new BlockingWaitStrategy());
     }

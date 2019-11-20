@@ -2,6 +2,7 @@ package com.lmax.disruptor.dsl;
 
 import com.lmax.disruptor.Sequence;
 import com.lmax.disruptor.SequenceBarrier;
+
 import java.util.concurrent.Executor;
 
 /**
@@ -14,6 +15,7 @@ interface ConsumerInfo {
     //barrier 只有一份 控制消费者序列的屏障
     SequenceBarrier getBarrier();
 
+    //是否处于链的结尾
     boolean isEndOfChain();
 
     //开始执行
@@ -22,7 +24,9 @@ interface ConsumerInfo {
     //停止
     void halt();
 
+    //标记一下
     void markAsUsedInBarrier();
 
+    //是否在运行
     boolean isRunning();
 }

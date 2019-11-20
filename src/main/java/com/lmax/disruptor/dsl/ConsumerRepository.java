@@ -48,6 +48,7 @@ class ConsumerRepository<T> implements Iterable<ConsumerInfo> {
         consumerInfos.add(consumerInfo);
     }
 
+    //多个消费者
     public void add(final WorkerPool<T> workerPool, final SequenceBarrier sequenceBarrier) {
         //添加消费者信息
         final WorkerPoolInfo<T> workerPoolInfo = new WorkerPoolInfo<>(workerPool, sequenceBarrier);
